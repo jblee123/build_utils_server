@@ -1,4 +1,5 @@
 import http.server
+import pathlib
 import os
 import sqlite3
 import time
@@ -199,7 +200,20 @@ class BuildHandler(http.server.BaseHTTPRequestHandler):
         else:
             self.send_error(404, "Invalid path")
 
+def ensure_db_exists():
+    db_file = pathlib.Path(DB_FILENAME)
+    if db_file.is_file():
+        return
+
+    script_file = open('db_scripts.sql')
+    scripts = script_file.read()
+
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.executescript(scripts)
+    conn.close()
+
 def run(server_class=http.server.HTTPServer, handler_class=BuildHandler):
+    ensure_db_exists()
     server_address = ('', 9000)
     httpd = server_class(server_address, handler_class)
     httpd.serve_forever()
