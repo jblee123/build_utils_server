@@ -1,7 +1,9 @@
+import getopt
 import http.server
 import pathlib
 import os
 import sqlite3
+import sys
 import time
 import urllib.parse
 
@@ -192,11 +194,16 @@ class BuildHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         (cmd, params) = self.parse_path()
 
-        ret_vals = {}
+        if cmd == '/cmd/get_build_data':
+            self.handle_get_build_data(params)
+        else:
+            self.send_error(404, "Invalid path")
+
+    def do_POST(self):
+        (cmd, params) = self.parse_path()
+
         if cmd == '/cmd/next_build_num':
             self.handle_get_next_build_num(params)
-        elif cmd == '/cmd/get_build_data':
-            self.handle_get_build_data(params)
         else:
             self.send_error(404, "Invalid path")
 
@@ -212,10 +219,34 @@ def ensure_db_exists():
     conn.executescript(scripts)
     conn.close()
 
-def run(server_class=http.server.HTTPServer, handler_class=BuildHandler):
+def run(port, server_class=http.server.HTTPServer, handler_class=BuildHandler):
     ensure_db_exists()
-    server_address = ('', 9000)
+    server_address = ('', port)
     httpd = server_class(server_address, handler_class)
     httpd.serve_forever()
 
-run()
+def print_usage():
+    print('usage: python build_utils_server.py [-p] <port>')
+
+def main():
+    port = 9000
+    try:
+        parsed_args = getopt.getopt(sys.argv[1:], 'p:')
+    except getopt.GetoptError as e:
+        print('error: ' + e.msg)
+        print_usage()
+        sys.exit(1)
+
+    for opt, optarg in parsed_args[0]:
+        if opt == '-p':
+            try:
+                port = int(optarg)
+                if port <= 0:
+                    raise ValueError()
+            except ValueError as e:
+                print('error: illegal value for option "-p": must be a positive number')
+                sys.exit(1)
+
+    run(port)
+
+main()
