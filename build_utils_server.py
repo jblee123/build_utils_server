@@ -1,3 +1,4 @@
+import cgi
 import getopt
 import http.server
 import pathlib
@@ -56,7 +57,8 @@ def get_next_build_num(params):
 
     timestamp = time.time()
     cur.execute(
-        'insert into build(version_id, build_num, timestamp, commit_id) values (?, ?, ?, ?)',
+        'insert into build(version_id, build_num, timestamp, commit_id) '
+        'values (?, ?, ?, ?)',
         (version_id, build_num, timestamp, commit))
 
     conn.commit()
@@ -172,13 +174,26 @@ class BuildHandler(http.server.BaseHTTPRequestHandler):
 <html>
 <head>
     <style>
-        th, td {
+        th, td {{
             border: 1px solid black;
-        }
+        }}
     </style>
 </head>
 <body>
-""")
+
+<iframe name="form_dest" style="display: none;"
+ onload="if (did_submit) {{window.location.reload()}}"></iframe>
+<form method="post" action="/cmd/next_build_num" target="form_dest"
+  onsubmit="did_submit = true;">
+  <input type="hidden" name="product" value="{0}">
+  <input type="hidden" name="version" value="{1}">
+  Commit ID: <input type="text" name="commit">
+  <button type="submit">
+    Generate next build number
+  </button>
+</form>
+
+""".format(product_name, version_str))
 
         if not product_name:
             self.write_wfile('bad request: need a valid product name')
@@ -202,7 +217,19 @@ class BuildHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         (cmd, params) = self.parse_path()
 
+        if not len(params):
+            form = cgi.FieldStorage(
+                fp=self.rfile,
+                headers=self.headers,
+                environ={"REQUEST_METHOD": "POST"}
+            )
+
+            params = {}
+            for item in form.list:
+                params[item.name] = item.value
+
         if cmd == '/cmd/next_build_num':
+            print('do /cmd/next_build_num')
             self.handle_get_next_build_num(params)
         else:
             self.send_error(404, "Invalid path")
